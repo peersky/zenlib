@@ -17,6 +17,7 @@ This is a lightweight audio processing library intended to run on embedded devic
 - If you really have to write a macro, it must be ALL_CAPS_WITH_UNDERSCORES. As they’re the only symbols written in all-caps, this makes them easy to spot.
 Since macros have no namespaces, their names must be guaranteed not to clash with macros or symbols used in other libraries or 3rd party code, so you should start them with something unique to your project. All the ZEN macros begin with ZEN_. 
 For enums, use camel-case with the same capitalisation that you'd use for a class and its member variables, e.g.
+```
 enum class MyEnum
 {
 enumValue1 = 0,
