@@ -7,9 +7,8 @@
 	//
 
 #include <iostream>
-#include "zen_math.h"
-#include <math.h>
-#include "dsp.h"
+
+#include "math.h"
 #pragma once
 
 
@@ -23,22 +22,22 @@ enum InterpolationTypes
 	INTERPOLATION_TYPES_NUM_ENUM
 };
 
-class Interpolator
+class TapeInterpolator
 {
 public:
-	Interpolator()
+	TapeInterpolator()
 	{
 		
 	}
-	Interpolator(float x0, uint32_t N, float max_value)
+	TapeInterpolator(float x0, uint32_t N, float max_value)
 	{
 		prepareToPlay(x0, N, max_value, 1);
 	}
-	Interpolator(float x0, uint32_t N, float max_value, float outputGain)
+	TapeInterpolator(float x0, uint32_t N, float max_value, float outputGain)
 	{
 		prepareToPlay(x0, N, max_value, outputGain);
 	}
-	~Interpolator()
+	~TapeInterpolator()
 	{
 		
 	}

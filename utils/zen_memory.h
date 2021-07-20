@@ -1,11 +1,30 @@
+/*
+ MIT License
+ 
+ Copyright (c) 2021 Tim Pechersky
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ 
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ 
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ */
+
+
 #pragma once
-	//==============================================================================
-
-//#include "ZEN.h"
 #include <new>
-
-	//==============================================================================
-
 
 #define MPOOL_ALIGN_SIZE (8)
 
@@ -14,9 +33,9 @@ namespace zen {
 class MemoryNode
 {
 public:
-	MemoryNode(char* block_location, MemoryNode* next, MemoryNode* prev, size_t size, size_t header_size)
+	MemoryNode(char* block_location, MemoryNode* next, MemoryNode* prev, size_t size, size_t headerSize)
 	{
-		pool = block_location + header_size;
+		pool = block_location + headerSize;
 		next = next;
 		prev = prev;
 		size = size;
@@ -39,31 +58,21 @@ class Mempool
 public:
 	Mempool()
 	{
-		mpool = NULL;
-		usize = NULL;
-		msize = NULL;
-		head = NULL;
+		mpool_ = NULL;
+		usize_ = NULL;
+		msize_ = NULL;
+		head_ = NULL;
 	}
 	
 	Mempool(char* memory, size_t size)
 	{
-		size_t header_size = getHeaderSize();
+		size_t headerSize = getHeaderSize();
 		
-		mpool = (char*)memory;
-		usize  = 0;
-		msize  = size;
+		mpool_ = (char*)memory;
+		usize_  = 0;
+		msize_  = size;
 		
-		head = create_node(mpool, NULL, NULL, msize-header_size, header_size);
-// 		create_node(pool->mpool, NULL, NULL, pool->msize - header_size, header_size);
-		
-		/*
-		 for (int i = 0; i < pool->head->size; i++)
-		 {
-		 memory[i+leaf.header_size]=0;
-		 }
-		 */
-			//is zeroing out the memory necessary? This takes a long time on large pools - JS
-
+		head_ = create_node(mpool_, NULL, NULL, msize_-headerSize, headerSize);
 	}
 	
 	~Mempool()
@@ -79,12 +88,12 @@ public:
 	
 	size_t getPoolSize()
 	{
-		return msize;
+		return msize_;
 	}
 	
 	size_t getPoolUsed()
 	{
-		return usize;
+		return usize_;
 	}
 	
 	
@@ -98,10 +107,10 @@ private:
 	}
 
 	
-	inline zen::MemoryNode *create_node(char* block_location, MemoryNode* next, MemoryNode* prev, size_t size, size_t header_size)
+	inline zen::MemoryNode *create_node(char* block_location, MemoryNode* next, MemoryNode* prev, size_t size, size_t headerSize)
 	{
-		zen::MemoryNode *pNode = new (block_location) MemoryNode(block_location, next, prev, size, header_size);
-		pNode->pool = block_location + header_size;
+		zen::MemoryNode *pNode = new (block_location) MemoryNode(block_location, next, prev, size, headerSize);
+		pNode->pool = block_location + headerSize;
 		pNode->next = next;
 		pNode->prev = prev;
 		pNode->size = size;
@@ -137,12 +146,12 @@ private:
 
 	
 	
-	Mempool*			pParent;	// In case memory object is stored within another memory space
-	char*				mpool;       // start of the mpool
-	size_t              usize;       // used size of the pool
-	size_t              msize;       // max size of the pool
-	bool            	clearOnAllocation;
-	zen::MemoryNode 	*head;		// first node of memory pool free list
+	Mempool*			pParent_;	// In case memory object is stored within another memory space
+	char*				mpool_;       // start of the mpool
+	size_t              usize_;       // used size of the pool
+	size_t              msize_;       // max size of the pool
+	bool            	clearOnAllocation_;
+	zen::MemoryNode 	*head_;		// first node of memory pool free list
 };
 
 } //namespace zen

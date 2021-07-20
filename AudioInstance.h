@@ -11,11 +11,7 @@
 #pragma once
 
 #include "utils/zen_memory.h"
-#include "dsp/zen_math.h"
-
-#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-TypeName(const TypeName&);               \
-void operator=(const TypeName&)
+#include "dsp/math.h"
 
 namespace zen {
 
@@ -28,12 +24,6 @@ public:
 	{
 		
 	}
-		//
-		//	AudioInstance(AudioInstance & Instance)
-		//	{
-		//		sampleRate = &Instance.sampleRate;
-		//
-		//	}
 	
 	AudioInstance(float sr, size_t blockSize, float(*random)(void))
 	{
@@ -94,7 +84,7 @@ public:
 	{
 		sampleRate_ = sr;
 		invSampleRate_ = 1.0f/sampleRate_;
-		twoPiTimesInvSampleRate_ = invSampleRate_ * TWO_PI;
+		twoPiTimesInvSampleRate_ = invSampleRate_ * ZEN_TWO_PI;
 	}
 	
 	
