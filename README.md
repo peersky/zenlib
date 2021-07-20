@@ -30,6 +30,6 @@ ENUM_NUM
 ```
 
 
-## Naming conventions
+## Contributing
 
 Collaborating is welcomed. If you want to make your contribution - fork the repo, make changes and create a Pull request. 
