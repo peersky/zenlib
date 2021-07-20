@@ -9,18 +9,12 @@
 #include <iostream>
 
 #include "math.h"
+#include "../utils/debug.h"
 #pragma once
 
 
 namespace zen {
 
-enum InterpolationTypes
-{
-	INTERPOLATION_TYPES_DELTA_IIR_GRAVITATIONAL=0,
-	INTERPOLATION_TYPES_CONSTANT_IIR_GRAVITATIONAL,
-	INTERPOLATION_TYPES_LERP,
-	INTERPOLATION_TYPES_NUM_ENUM
-};
 
 class TapeInterpolator
 {
@@ -44,7 +38,6 @@ public:
 	
 	void prepareToPlay(float x0, uint32_t N, float max_value, float inputGain)
 	{
-		v0_ = x0;
 		float N_flt = (float)N;
 		N_ = N_flt;
 		y_=x0;
@@ -52,13 +45,13 @@ public:
 		if_ = inputGain;
 		counter=0;
 		x_prev = x0;
-		y0_ = x0;
 		c2_ = 0;
 	}
 	
 	void prepareToPlay(float x0, uint32_t N, float max_value)
 	{
 		prepareToPlay(x0, N, max_value, 1.0f);
+		monitor.startAverageMonitor();
 	}
 	
 	
@@ -76,8 +69,8 @@ public:
 		
 		float delta = fabs(newValue - y_)*nf_;
 		
-//		a_ = 5.5/N_;
-//		if(delta>0.008f)
+			//		a_ = 5.5/N_;
+			//		if(delta>0.008f)
 		if(0!=delta && delta<0.008f)
 		{
 			c2_ += 0.00001f* nf_;
@@ -93,19 +86,15 @@ public:
 		return y_;
 	}
 	
-	inline void processBlock(float endValue, float* output, size_t size, float gain)
+	inline void processBlock(float* io, size_t size, float gain)
 	{
-		endValue = endValue*if_;
 		for (int i = 0; i< size; i++ )
 		{
-				//process each step to find multiple points for interpolation
-			float lerpStep = lerp(v0_, endValue, (float) i/size);
-				//get filtered value
-			float retval =  gain* tick(lerpStep);
-			output[i] =   retval;
+			float retval =  gain * tick(io[i]);
+			io[i] =   retval;
 		}
-		v0_ = endValue;
 	}
+	
 	
 	float a_;
 	
@@ -138,16 +127,14 @@ private:
 		return a_;
 	}
 	
-	float y0_;
+	zen::LoadMonitor monitor;
 	float c2_;
 	float x_prev;
 	int counter;
 	float y_;
-	float v0_;
 	float N_;
 	float if_;
 	float delta_th_;
 	float nf_;
-	InterpolationTypes type_;
 };
 } //namespace zen

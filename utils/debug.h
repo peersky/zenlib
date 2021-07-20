@@ -94,8 +94,14 @@ void assert_failed(uint8_t* file, uint32_t line);
 namespace zen {
 class LoadMonitor {
 public:
-	LoadMonitor();
-	~LoadMonitor();
+	LoadMonitor()
+	{
+		
+	}
+	~LoadMonitor()
+	{
+		
+	}
 #ifdef ZEN_PLATFORM_BDSP
 	inline void startAverageMonitor()
 	{
@@ -119,7 +125,12 @@ public:
 		laps_=0;
 		total_ = 0;
 	}
-	inline void Lap()
+	inline void lapStart()
+	{
+		start_ = std::chrono::high_resolution_clock::now();
+		
+	}
+	inline void lapEnd()
 	{
 		lap_ = std::chrono::duration<float, std::milli>( std::chrono::high_resolution_clock::now() - start_).count();
 		total_ += lap_;

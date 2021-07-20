@@ -29,9 +29,16 @@
 #include "feedback.h"
 #include "compressor.h"
 #include "../dsp/math.h"
+#include "../utils/debug.h"
+#include "../dsp/TapeInterpolator.h"
 
 
-
+enum delayTypes {
+	DELAY_TYPE_TAPE = 0,
+	DELAY_TYPE_DIGITAL,
+	DELAY_TYPE_REVERB,
+	DELAY_TYPE_NUM_ENUM
+};
 
 namespace zen
 {
@@ -51,7 +58,7 @@ public:
 		
 	}
 	Delay(const feedbackHandler<T> handler,
-			 AudioInstance &Zen) : Instance_(Zen)
+		  AudioInstance &Zen) : Instance_(Zen)
 	{
 		
 	}
@@ -62,9 +69,13 @@ public:
 	
 	void prepareToPlay()
 	{
+		
+		type_ = DELAY_TYPE_TAPE;
 		Feedback::prepareToPlay();
+		tapeInterpolator_.prepareToPlay(0, 48000, max_delay_samples*1000*Instance_.getInvSampleRate());
 		for (int ch=0; ch < numChannels; ch++)
 		{
+			preDelayInterpolators_[ch].prepareToPlay(0, 48000, max_delay_samples*1000*Instance_.getInvSampleRate());
 			delayLine_[ch].prepareToPlay();
 		}
 	}
@@ -95,10 +106,7 @@ public:
 	 */
 	inline void setChannelDelay(T delay_ms, size_t channel)
 	{
-//		channel_delay_ms[channel] = clamp<T>(delay_ms, 0, max_delay_samples*1000*Instance_.getInvSampleRate());
-//		delay_lines_[channel].setDelay(channel_delay_ms[channel]*Instance_.getSampleRate()*0.001f);
 		delayTime_ms_[channel] = clamp<T>(delay_ms, 0, max_delay_samples*1000*Instance_.getInvSampleRate());
-//		delay_lines_[channel].setDelay(channel_delay_ms[channel]);
 	}
 	
 	/**
@@ -121,21 +129,72 @@ public:
 	 * @param input - pointers to channel buffer input[ch][sample]
 	 * @param output - pointers to channel buffer output[ch][sample]
 	 * @param delays -  pointer to array of delay values for each sample
-	 * @param offsets - pointer to channel buffer of delay offset values
+	 * @param preDelays - pointer to channel buffer of delay offset values (this will not add delay to feedback loop)
 	 * @param size - size of a block to process (and size of all of arrays above)
 	 * @param outGain - output gain to apply to output array
 	 * @return none.
 	 */
-	inline void processBlock(const T **input, T **output, float * delays, float ** offsets,  size_t size, float * feedbacks, float outGain) {
-		processBlock_(input, output, delays, offsets, size, feedbacks, outGain);
+	inline void processBlock(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
+		switch(type_)
+		{
+			case DELAY_TYPE_TAPE:
+				processBlock_tape_(input, output, delays, preDelays, size, feedbacks, outGain);
+				break;
+			case DELAY_TYPE_DIGITAL:
+				processBlock_digital_(input, output, delays, preDelays, size, feedbacks, outGain);
+				break;
+			default: ZEN_ERROR_HANDLER();
+				
+		}
 	}
 	
 	
-
+	
 	
 private:
 	
-	inline void processBlock_(const T **input, T **output, float * delays, float ** offsets,  size_t size, float * feedbacks, float outGain) {
+	
+	/**
+	 * sets delay for a channel in milliseconds
+	 * this call is overflow safe (it will clamp to min max values of delay line buffer size)
+	 * @param time_ms - value in milliseconds
+	 * @return samples
+	 */
+	inline T ms_to_samples_(T time_ms)
+	{
+		return clamp<T>(time_ms*Instance_.getSampleRate()*0.001f, 0, max_delay_samples);
+	}
+	
+	inline void processBlock_tape_(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
+		
+		
+		for(int i = 0; i < size; i++)
+		{
+			float newDelay = tapeInterpolator_.tick(delays[i]);
+			for (int ch=0; ch<numChannels; ch++)
+			{
+				float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
+				float writeDelay =  newDelay + preDelay;
+				setChannelDelay(writeDelay, ch);
+				sample_[ch] = input[ch][i];
+				
+				feedBackSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
+				readOutSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
+			}
+			Feedback::setLevel(feedbacks[i],1);
+			Feedback::tick(sample_, readOutSample_);
+			
+			for (int ch=0; ch<numChannels; ch++)
+			{
+				delayLine_[ch].Write(sample_[ch]);
+				output[ch][i] = outGain * readOutSample_[ch];
+			}
+			
+		}
+		
+	}
+	
+	inline void processBlock_digital_(const T **input, T **output, float * delays, float ** offsets,  size_t size, float * feedbacks, float outGain) {
 		
 		for(int i = 0; i < size; i++)
 		{
@@ -147,7 +206,7 @@ private:
 			}
 			Feedback::setLevel(feedbacks[i],1);
 			Feedback::tick(sample_, readOutSample_);
-
+			
 			for (int ch=0; ch<numChannels; ch++)
 			{
 				delayLine_[ch].Write(sample_[ch]);
@@ -162,7 +221,11 @@ private:
 	T delayTime_ms_[numChannels];
 	AudioInstance &Instance_;
 	T readOutSample_[numChannels];
+	T feedBackSample_[numChannels];
 	zen::DelayLine<T, max_delay_samples> delayLine_[numChannels];
+	delayTypes type_;
+	zen::TapeInterpolator tapeInterpolator_;
+	zen::TapeInterpolator preDelayInterpolators_[numChannels];
 	
 };
 
