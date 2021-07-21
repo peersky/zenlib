@@ -40,6 +40,11 @@ enum delayTypes {
 	DELAY_TYPE_NUM_ENUM
 };
 
+enum digitalDelayStates {
+	DIGITAL_DELAY_IDLE = 0,
+	DIGITAL_DELAY_BUSY,
+};
+
 namespace zen
 {
 
@@ -78,6 +83,9 @@ public:
 			preDelayInterpolators_[ch].prepareToPlay(0, 48000, max_delay_samples*1000*Instance_.getInvSampleRate());
 			delayLine_[ch].prepareToPlay();
 		}
+		last_delay_ = 0;
+		digitalCounter_ = 0;
+		newDigital_delay_  = 0;
 	}
 	
 	/**
@@ -148,7 +156,10 @@ public:
 		}
 	}
 	
-	
+	inline void setDelayType(delayTypes newType)
+	{
+		type_ = newType;
+	}
 	
 	
 private:
@@ -178,11 +189,11 @@ private:
 				setChannelDelay(writeDelay, ch);
 				sample_[ch] = input[ch][i];
 				
-				feedBackSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
-				readOutSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
+				readOutSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
+				feedBackSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
 			}
 			Feedback::setLevel(feedbacks[i],1);
-			Feedback::tick(sample_, readOutSample_);
+			Feedback::tick(sample_, feedBackSample_);
 			
 			for (int ch=0; ch<numChannels; ch++)
 			{
@@ -194,18 +205,56 @@ private:
 		
 	}
 	
-	inline void processBlock_digital_(const T **input, T **output, float * delays, float ** offsets,  size_t size, float * feedbacks, float outGain) {
+	inline void processBlock_digital_(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
 		
+		float balance;
+		static size_t counter;
 		for(int i = 0; i < size; i++)
 		{
+			if(digital_delay_state_ == DIGITAL_DELAY_IDLE)
+			{
+				if(last_delay_ != delays[i])
+				{
+					digital_delay_state_ = DIGITAL_DELAY_BUSY;
+					newDigital_delay_ = delays[i];
+				}
+			}
+			if(digital_delay_state_ == DIGITAL_DELAY_BUSY)
+			{
+				if(counter<size)
+				{
+					counter++;
+					balance = (float)counter/size;
+				}
+				else
+				{
+					counter = 0;
+					last_delay_ = newDigital_delay_;
+					digital_delay_state_ = DIGITAL_DELAY_IDLE;
+				}
+			}
+			
+			float oldDelay = last_delay_;
+			float newDelay = newDigital_delay_;
 			for (int ch=0; ch<numChannels; ch++)
 			{
+				float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
+				float oldTotalDelay =  oldDelay + preDelay;
+				float newTotalDelay =  newDelay + preDelay;
+				setChannelDelay(oldTotalDelay, ch);
 				sample_[ch] = input[ch][i];
-				setChannelDelay(delays[i] + offsets[ch][i], ch);
-				readOutSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
+				
+				T oldFeedBackSample = delayLine_[ch].Read(ms_to_samples_(oldDelay));
+				T newFeedBackSample = delayLine_[ch].Read(ms_to_samples_(newDelay));
+				
+				T oldReadOutSample = delayLine_[ch].Read(ms_to_samples_(oldTotalDelay));
+				T newReadOutSample = delayLine_[ch].Read(ms_to_samples_(newTotalDelay));
+				
+				feedBackSample_[ch] = mixer(oldFeedBackSample, newFeedBackSample, balance);
+				readOutSample_[ch] = mixer(oldReadOutSample, newReadOutSample, balance);
 			}
 			Feedback::setLevel(feedbacks[i],1);
-			Feedback::tick(sample_, readOutSample_);
+			Feedback::tick(sample_, feedBackSample_);
 			
 			for (int ch=0; ch<numChannels; ch++)
 			{
@@ -216,7 +265,11 @@ private:
 		}
 		
 	}
-	
+
+	digitalDelayStates digital_delay_state_;
+	T digitalCounter_;
+	T last_delay_;
+	T newDigital_delay_;
 	T sample_[numChannels];
 	T delayTime_ms_[numChannels];
 	AudioInstance &Instance_;
