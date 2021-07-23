@@ -15,6 +15,54 @@
 
 namespace zen {
 
+/**
+ A collection of structs to pass as the template argument when setting the
+ interpolation type for the DelayLine class.
+ */
+namespace DelayLineInterpolationTypes
+{
+/**
+ No interpolation between successive samples in the delay line will be
+ performed. This is useful when the delay is a constant integer or to
+ create lo-fi audio effects.
+ 
+ @tags{DSP}
+ */
+struct None {};
+
+/**
+ Successive samples in the delay line will be linearly interpolated. This
+ type of interpolation has a low compuational cost where the delay can be
+ modulated in real time, but it also introduces a low-pass filtering effect
+ into your audio signal.
+ 
+ @tags{DSP}
+ */
+struct Linear {};
+
+/**
+ Successive samples in the delay line will be interpolated using a 3rd order
+ Lagrange interpolator. This method incurs more computational overhead than
+ linear interpolation but reduces the low-pass filtering effect whilst
+ remaining amenable to real time delay modulation.
+ 
+ @tags{DSP}
+ */
+struct Lagrange3rd {};
+
+/**
+ Successive samples in the delay line will be interpolated using 1st order
+ Thiran interpolation. This method is very efficient, and features a flat
+ amplitude frequency response in exchange for less accuracy in the phase
+ response. This interpolation method is stateful so is unsuitable for
+ applications requiring fast delay modulation.
+ 
+ @tags{DSP}
+ */
+struct Thiran {};
+}
+
+
 
 class TapeInterpolator
 {

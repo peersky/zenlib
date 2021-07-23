@@ -98,7 +98,10 @@ private:
 
 class OnePole {
 public:
-	OnePole() { }
+	OnePole() {
+		set_f<FREQUENCY_DIRTY>(0.01f);
+		Reset();
+	}
 	~OnePole() { }
 	
 	void Init() {

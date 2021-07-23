@@ -57,7 +57,7 @@ inline void crossfade(float fade, float* volumes) {
  * @param sample1 - sample for channel1
  * @return crossfaded result of two samples at given fade state
  */
-inline float crossfade_tick(float fade, float sample0, float sample1) {
+inline float crossfade_tick(float sample0, float sample1, float fade) {
 	
 	float volume0 = sqrtf(0.5f * (1.0f + fade));
 	float volume1 = sqrtf(0.5f * (1.0f - fade));

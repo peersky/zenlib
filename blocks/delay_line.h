@@ -37,7 +37,9 @@ namespace zen {
 template<typename T, size_t maxDelay>
 class DelayLine {
 public:
-	DelayLine() { }
+	DelayLine() {
+		Reset();
+	}
 	~DelayLine() { }
 	
 	void prepareToPlay() {

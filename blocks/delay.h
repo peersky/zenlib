@@ -30,23 +30,19 @@
 #include "compressor.h"
 #include "../dsp/math.h"
 #include "../utils/debug.h"
-#include "../dsp/TapeInterpolator.h"
+#include "../dsp/DelayInterpolator.h"
 
 
-enum delayTypes {
-	DELAY_TYPE_TAPE = 0,
-	DELAY_TYPE_DIGITAL,
-	DELAY_TYPE_REVERB,
-	DELAY_TYPE_NUM_ENUM
-};
 
-enum digitalDelayStates {
-	DIGITAL_DELAY_IDLE = 0,
-	DIGITAL_DELAY_BUSY,
-};
+
 
 namespace zen
 {
+
+enum class delayTypes {
+	TAPE = 0,
+	DIGITAL,
+};
 
 
 template <typename T>
@@ -58,12 +54,13 @@ class Delay : public zen::Feedback<T, numChannels>
 public:
 	using Feedback = zen::Feedback<T,numChannels>;
 	
-	Delay(AudioInstance &Zen) : Instance_(Zen)
+	
+	Delay(AudioInstance &Zen) : instance_(Zen)
 	{
 		
 	}
 	Delay(const feedbackHandler<T> handler,
-		  AudioInstance &Zen) : Instance_(Zen)
+		  AudioInstance &Zen) : instance_(Zen)
 	{
 		
 	}
@@ -72,20 +69,25 @@ public:
 	{
 	}
 	
+
+
+	
 	void prepareToPlay()
 	{
 		
-		type_ = DELAY_TYPE_TAPE;
+		type_ = delayTypes::TAPE;
 		Feedback::prepareToPlay();
-		tapeInterpolator_.prepareToPlay(0, 48000, max_delay_samples*1000*Instance_.getInvSampleRate());
+		tapeInterpolator_.prepareToPlay(0, 48000, max_delay_samples*1000*instance_.getInvSampleRate());
 		for (int ch=0; ch < numChannels; ch++)
 		{
-			preDelayInterpolators_[ch].prepareToPlay(0, 48000, max_delay_samples*1000*Instance_.getInvSampleRate());
+			preDelayInterpolators_[ch].prepareToPlay(0, 48000, max_delay_samples*1000*instance_.getInvSampleRate());
 			delayLine_[ch].prepareToPlay();
+			
 		}
-		last_delay_ = 0;
-		digitalCounter_ = 0;
-		newDigital_delay_  = 0;
+		digitalState.old = 0;
+		digitalState.counter = 0;
+		digitalState.newest  = 0;
+		digitalState.size = 512;
 	}
 	
 	/**
@@ -103,7 +105,7 @@ public:
 	 */
 	inline T getChannelDelay_samples(size_t channel)
 	{
-		return delayTime_ms_[channel]*Instance_.getSampleRate()*0.001f;
+		return delayTime_ms_[channel]*instance_.getSampleRate()*0.001f;
 	}
 	
 	/**
@@ -114,7 +116,7 @@ public:
 	 */
 	inline void setChannelDelay(T delay_ms, size_t channel)
 	{
-		delayTime_ms_[channel] = clamp<T>(delay_ms, 0, max_delay_samples*1000*Instance_.getInvSampleRate());
+		delayTime_ms_[channel] = clamp<T>(delay_ms, 0, max_delay_samples*1000*instance_.getInvSampleRate());
 	}
 	
 	/**
@@ -143,16 +145,23 @@ public:
 	 * @return none.
 	 */
 	inline void processBlock(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
-		switch(type_)
+		const delayTypes type = type_;
+		for(int i = 0; i < size; i++)
 		{
-			case DELAY_TYPE_TAPE:
-				processBlock_tape_(input, output, delays, preDelays, size, feedbacks, outGain);
-				break;
-			case DELAY_TYPE_DIGITAL:
-				processBlock_digital_(input, output, delays, preDelays, size, feedbacks, outGain);
-				break;
-			default: ZEN_ERROR_HANDLER();
-				
+			Feedback::setLevel(feedbacks[i],1);
+			switch(type)
+			{
+				case delayTypes::TAPE :
+					processBlock_tape_(input, delays, preDelays, i);
+					break;
+				case delayTypes::DIGITAL:
+					processBlock_digital_(input, delays, preDelays, i);
+					break;
+				default: ZEN_ERROR_HANDLER();
+					
+			}
+			Feedback::tick(sample_, feedBackSample_);
+			writeAndOutputAllChannels(output, i, outGain);
 		}
 	}
 	
@@ -163,7 +172,28 @@ public:
 	
 	
 private:
+	enum digitalDelayStates {
+		DIGITAL_DELAY_IDLE = 0,
+		DIGITAL_DELAY_BUSY,
+	};
+	using digitalStateType_ = struct {
+		
+		digitalDelayStates state;
+		T counter;
+		T old;
+		T newest;
+		size_t size;
+	};
 	
+	
+	inline void writeAndOutputAllChannels(T **output, size_t index, T outGain)
+	{
+		for (int ch=0; ch<numChannels; ch++)
+		{
+			delayLine_[ch].Write(sample_[ch]);
+			output[ch][index] = outGain * readOutSample_[ch];
+		}
+	}
 	
 	/**
 	 * sets delay for a channel in milliseconds
@@ -173,112 +203,91 @@ private:
 	 */
 	inline T ms_to_samples_(T time_ms)
 	{
-		return clamp<T>(time_ms*Instance_.getSampleRate()*0.001f, 0, max_delay_samples);
+		return clamp<T>(time_ms*instance_.getSampleRate()*0.001f, 0, max_delay_samples);
 	}
 	
-	inline void processBlock_tape_(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
+	
+	inline void processBlock_tape_(const T **input, float * delays, float ** preDelays, size_t i) {
 		
 		
-		for(int i = 0; i < size; i++)
+		float newDelay = tapeInterpolator_.tick(delays[i]);
+		for (int ch=0; ch<numChannels; ch++)
 		{
-			float newDelay = tapeInterpolator_.tick(delays[i]);
-			for (int ch=0; ch<numChannels; ch++)
-			{
-				float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
-				float writeDelay =  newDelay + preDelay;
-				setChannelDelay(writeDelay, ch);
-				sample_[ch] = input[ch][i];
-				
-				readOutSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
-				feedBackSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
-			}
-			Feedback::setLevel(feedbacks[i],1);
-			Feedback::tick(sample_, feedBackSample_);
+			float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
+			float writeDelay =  newDelay + preDelay;
+			setChannelDelay(writeDelay, ch);
+			sample_[ch] = input[ch][i];
 			
-			for (int ch=0; ch<numChannels; ch++)
-			{
-				delayLine_[ch].Write(sample_[ch]);
-				output[ch][i] = outGain * readOutSample_[ch];
-			}
-			
+			readOutSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
+			feedBackSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
 		}
 		
+		
 	}
 	
-	inline void processBlock_digital_(const T **input, T **output, float * delays, float ** preDelays,  size_t size, float * feedbacks, float outGain) {
+	inline void processBlock_digital_(const T **input, float * delays, float ** preDelays, size_t i) {
 		
 		float balance;
-		static size_t counter;
-		for(int i = 0; i < size; i++)
+		if(digitalState.state == DIGITAL_DELAY_IDLE)
 		{
-			if(digital_delay_state_ == DIGITAL_DELAY_IDLE)
+			if(digitalState.old != delays[i])
 			{
-				if(last_delay_ != delays[i])
-				{
-					digital_delay_state_ = DIGITAL_DELAY_BUSY;
-					newDigital_delay_ = delays[i];
-				}
+				digitalState.state = DIGITAL_DELAY_BUSY;
+				digitalState.newest = delays[i];
 			}
-			if(digital_delay_state_ == DIGITAL_DELAY_BUSY)
+		}
+		if(digitalState.state == DIGITAL_DELAY_BUSY)
+		{
+			if(digitalState.counter<digitalState.size)
 			{
-				if(counter<size)
-				{
-					counter++;
-					balance = (float)counter/size;
-				}
-				else
-				{
-					counter = 0;
-					last_delay_ = newDigital_delay_;
-					digital_delay_state_ = DIGITAL_DELAY_IDLE;
-				}
+				digitalState.counter++;
+				balance = (float)digitalState.counter/digitalState.size;
 			}
+			else
+			{
+				digitalState.counter = 0;
+				digitalState.old = digitalState.newest;
+				digitalState.state = DIGITAL_DELAY_IDLE;
+			}
+		}
+		
+		float oldDelay = digitalState.old;
+		float newDelay = digitalState.newest;
+		for (int ch=0; ch<numChannels; ch++)
+		{
+			float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
+			float oldTotalDelay =  oldDelay + preDelay;
+			float newTotalDelay =  newDelay + preDelay;
+			setChannelDelay(oldTotalDelay, ch);
+			sample_[ch] = input[ch][i];
 			
-			float oldDelay = last_delay_;
-			float newDelay = newDigital_delay_;
-			for (int ch=0; ch<numChannels; ch++)
-			{
-				float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
-				float oldTotalDelay =  oldDelay + preDelay;
-				float newTotalDelay =  newDelay + preDelay;
-				setChannelDelay(oldTotalDelay, ch);
-				sample_[ch] = input[ch][i];
-				
-				T oldFeedBackSample = delayLine_[ch].Read(ms_to_samples_(oldDelay));
-				T newFeedBackSample = delayLine_[ch].Read(ms_to_samples_(newDelay));
-				
-				T oldReadOutSample = delayLine_[ch].Read(ms_to_samples_(oldTotalDelay));
-				T newReadOutSample = delayLine_[ch].Read(ms_to_samples_(newTotalDelay));
-				
-				feedBackSample_[ch] = mixer(oldFeedBackSample, newFeedBackSample, balance);
-				readOutSample_[ch] = mixer(oldReadOutSample, newReadOutSample, balance);
-			}
-			Feedback::setLevel(feedbacks[i],1);
-			Feedback::tick(sample_, feedBackSample_);
+			T oldFeedBackSample = delayLine_[ch].Read(ms_to_samples_(oldDelay));
+			T newFeedBackSample = delayLine_[ch].Read(ms_to_samples_(newDelay));
 			
-			for (int ch=0; ch<numChannels; ch++)
-			{
-				delayLine_[ch].Write(sample_[ch]);
-				output[ch][i] = outGain * readOutSample_[ch];
-			}
+			T oldReadOutSample = delayLine_[ch].Read(ms_to_samples_(oldTotalDelay));
+			T newReadOutSample = delayLine_[ch].Read(ms_to_samples_(newTotalDelay));
 			
+			feedBackSample_[ch] = mixer(oldFeedBackSample, newFeedBackSample, balance);
+			readOutSample_[ch] = mixer(oldReadOutSample, newReadOutSample, balance);
 		}
 		
 	}
-
-	digitalDelayStates digital_delay_state_;
-	T digitalCounter_;
-	T last_delay_;
-	T newDigital_delay_;
+	
+	AudioInstance &instance_;
+	digitalStateType_ digitalState;
+	
 	T sample_[numChannels];
-	T delayTime_ms_[numChannels];
-	AudioInstance &Instance_;
-	T readOutSample_[numChannels];
 	T feedBackSample_[numChannels];
-	zen::DelayLine<T, max_delay_samples> delayLine_[numChannels];
-	delayTypes type_;
+	T readOutSample_[numChannels];
+	T delayTime_ms_[numChannels];
+	
+	
+	
 	zen::TapeInterpolator tapeInterpolator_;
 	zen::TapeInterpolator preDelayInterpolators_[numChannels];
+	
+	delayTypes type_;
+	zen::DelayLine<T, max_delay_samples> delayLine_[numChannels];
 	
 };
 

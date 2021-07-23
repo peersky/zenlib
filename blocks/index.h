@@ -28,6 +28,7 @@
 
 #include "wave.h"
 #include "svf.h"
+#include "reverb.h"
 #include "delay.h"
 #include "compressor.h"
 

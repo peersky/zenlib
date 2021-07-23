@@ -169,6 +169,10 @@ public:
 		memcpy(io, newValue_, numChannels*sizeof(T));
 	}
 	
+	inline void setRoutingMatrix (T (&newRoutingMatrix)[numChannels*2][numChannels])
+	{
+		memcpy(routingMatrix,newRoutingMatrix, sizeof(T)*(numChannels*2*numChannels));
+	}
 	
 	
 private:
