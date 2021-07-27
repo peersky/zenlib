@@ -49,10 +49,10 @@ template <typename T>
 using feedbackHandler = T(*) (T);
 
 template <typename T, size_t max_delay_samples, size_t numChannels>
-class Delay : public zen::Feedback<T, numChannels>
+class Delay : public zen::Feedback<T, numChannels, 1>
 {
 public:
-	using Feedback = zen::Feedback<T,numChannels>;
+	using Feedback = zen::Feedback<T,numChannels, 1>;
 	
 	
 	Delay(AudioInstance &Zen) : instance_(Zen)
@@ -96,7 +96,7 @@ public:
 	 */
 	inline T getChannelDelay_ms(size_t channel)
 	{
-		return delayTime_ms_[channel];
+		return delayTime_ms_[channel][0];
 	}
 	
 	/**
@@ -105,7 +105,7 @@ public:
 	 */
 	inline T getChannelDelay_samples(size_t channel)
 	{
-		return delayTime_ms_[channel]*instance_.getSampleRate()*0.001f;
+		return delayTime_ms_[channel][0]*instance_.getSampleRate()*0.001f;
 	}
 	
 	/**
@@ -116,7 +116,7 @@ public:
 	 */
 	inline void setChannelDelay(T delay_ms, size_t channel)
 	{
-		delayTime_ms_[channel] = clamp<T>(delay_ms, 0, max_delay_samples*1000*instance_.getInvSampleRate());
+		delayTime_ms_[channel][0] = clamp<T>(delay_ms, 0, max_delay_samples*1000*instance_.getInvSampleRate());
 	}
 	
 	/**
@@ -190,8 +190,8 @@ private:
 	{
 		for (int ch=0; ch<numChannels; ch++)
 		{
-			delayLine_[ch].Write(sample_[ch]);
-			output[ch][index] = outGain * readOutSample_[ch];
+			delayLine_[ch].Write(sample_[ch][0]);
+			output[ch][index] = outGain * readOutSample_[ch][0];
 		}
 	}
 	
@@ -216,10 +216,10 @@ private:
 			float preDelay = preDelayInterpolators_[ch].tick(preDelays[ch][i]);
 			float writeDelay =  newDelay + preDelay;
 			setChannelDelay(writeDelay, ch);
-			sample_[ch] = input[ch][i];
+			sample_[ch][0] = input[ch][i];
 			
-			readOutSample_[ch] = delayLine_[ch].Read(getChannelDelay_samples(ch));
-			feedBackSample_[ch] = delayLine_[ch].Read(ms_to_samples_(newDelay));
+			readOutSample_[ch][0] = delayLine_[ch].Read(getChannelDelay_samples(ch));
+			feedBackSample_[ch][0] = delayLine_[ch].Read(ms_to_samples_(newDelay));
 		}
 		
 		
@@ -259,7 +259,7 @@ private:
 			float oldTotalDelay =  oldDelay + preDelay;
 			float newTotalDelay =  newDelay + preDelay;
 			setChannelDelay(oldTotalDelay, ch);
-			sample_[ch] = input[ch][i];
+			sample_[ch][0] = input[ch][i];
 			
 			T oldFeedBackSample = delayLine_[ch].Read(ms_to_samples_(oldDelay));
 			T newFeedBackSample = delayLine_[ch].Read(ms_to_samples_(newDelay));
@@ -267,8 +267,8 @@ private:
 			T oldReadOutSample = delayLine_[ch].Read(ms_to_samples_(oldTotalDelay));
 			T newReadOutSample = delayLine_[ch].Read(ms_to_samples_(newTotalDelay));
 			
-			feedBackSample_[ch] = mixer(oldFeedBackSample, newFeedBackSample, balance);
-			readOutSample_[ch] = mixer(oldReadOutSample, newReadOutSample, balance);
+			feedBackSample_[ch][0] = mixer(oldFeedBackSample, newFeedBackSample, balance);
+			readOutSample_[ch][0] = mixer(oldReadOutSample, newReadOutSample, balance);
 		}
 		
 	}
@@ -276,10 +276,10 @@ private:
 	AudioInstance &instance_;
 	digitalStateType_ digitalState;
 	
-	T sample_[numChannels];
-	T feedBackSample_[numChannels];
-	T readOutSample_[numChannels];
-	T delayTime_ms_[numChannels];
+	T sample_[numChannels][1];
+	T feedBackSample_[numChannels][1];
+	T readOutSample_[numChannels][1];
+	T delayTime_ms_[numChannels][1];
 	
 	
 	
