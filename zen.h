@@ -30,6 +30,7 @@ void operator=(const TypeName&)
 
 #define ZEN_CALL_MEMBER_FN(object,ptrToMember)  ((object).*(ptrToMember))
 
+#include "./utils/debug.h"
 #include "AudioInstance.h"
 #include "./dsp/math.h"
 #include "./blocks/index.h"

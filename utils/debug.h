@@ -37,6 +37,38 @@
 #include <chrono>  // for high_resolution_clock
 #endif
 
+
+static float* AnalyserPointer[2];
+static size_t scopeSize = 0;
+static float ** AnalyserPointerHeads;
+inline void setDebugAnalyser(float *ch1, float *ch2, size_t size)
+{
+	AnalyserPointer[0]=ch1;
+	AnalyserPointer[1]=ch2;
+	AnalyserPointerHeads = AnalyserPointer;
+	scopeSize = size;
+}
+
+inline void send_to_analyser(size_t channel, float *buffer)
+{
+	memcpy(AnalyserPointer,buffer, sizeof(float)*scopeSize);
+}
+
+inline void append_to_analyser(size_t channel, float sample)
+{
+	static size_t headIndex[2] = {0,0};
+	AnalyserPointer[channel][headIndex[channel]] = sample;
+	if(headIndex[channel] < scopeSize)
+	{
+		headIndex[channel]++;
+	}
+	else
+	{
+		headIndex[channel]=0;
+	}
+}
+
+
 inline void Error_Handler_(const char *file, int line)
 {
 	printf("Error: file %s on line %d\r\n", file, line);
