@@ -1,17 +1,17 @@
 /*
  =============================================================================
- 
+
  ZenInstance.
  Created: 19 Jul 2021 12:52:08p
  Author:  Tim
- 
+
  =============================================================================
  */
 
 #pragma once
 
 #include "utils/zen_memory.h"
-#include "dsp/math.h"
+#include "dsp/math.hpp"
 
 namespace zen {
 
@@ -19,42 +19,42 @@ namespace zen {
 class AudioInstance
 {
 public:
-	
+
 	AudioInstance()
 	{
-		
+
 	}
-	
+
 	AudioInstance(float sr, size_t blockSize, float(*random)(void))
 	{
-		
+
 		setSampleRate(sr);
 		random = random;
 		blockSize=blockSize;
 		clearOnAllocation_ = 0;
 	}
-	
-	
+
+
 	AudioInstance(float sr, char* memory, size_t memorysize, float(*random)(void)) : memory_(memory, memorysize)
 	{
-		
+
 		setSampleRate(sr);
 		random = random;
 		clearOnAllocation_ = 0;
 	}
-	
+
 	AudioInstance(float sr, char* memory, char* SDRAM_memory, size_t memorysize, size_t SDRAM_memorysize, float(*random)(void)) : memory_(memory, memorysize), SDRAM_(SDRAM_memory, SDRAM_memorysize)
 	{
-		
+
 		setSampleRate(sr);
 		random = random_;
 		clearOnAllocation_ = 0;
 	}
-	
+
 	~AudioInstance()
 	{
 	}
-	
+
 	void prepareToPlay(float sr, size_t bs, float(*rnd)(void))
 	{
 		setSampleRate(sr);
@@ -62,34 +62,34 @@ public:
 		blockSize_=bs;
 		clearOnAllocation_ = 0;
 	}
-	
+
 	inline float getSampleRate()
 	{
 		return sampleRate_;
 	};
-	
-	
-	
+
+
+
 	inline float getInvSampleRate()
 	{
 		return invSampleRate_;
 	}
-	
+
 	inline float getBlockSize()
 	{
 		return blockSize_;
 	}
-	
+
 	void setSampleRate(float sr)
 	{
 		sampleRate_ = sr;
 		invSampleRate_ = 1.0f/sampleRate_;
 		twoPiTimesInvSampleRate_ = invSampleRate_ * ZEN_TWO_PI;
 	}
-	
-	
-	
-	
+
+
+
+
 private:
 	float   sampleRate_; //!< The current audio sample rate. Set with LEAF_setSampleRate().
 	float   invSampleRate_; //!< The inverse of the current sample rate.

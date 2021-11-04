@@ -1,18 +1,18 @@
 /*
  MIT License
- 
+
  Copyright (c) 2021 Tim Pechersky
- 
+
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
  in the Software without restriction, including without limitation the rights
  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  copies of the Software, and to permit persons to whom the Software is
  furnished to do so, subject to the following conditions:
- 
+
  The above copyright notice and this permission notice shall be included in all
  copies or substantial portions of the Software.
- 
+
  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -55,11 +55,11 @@ public:
 	{
 		prepareToPlay(PtrTable, size, Form);
 	}
-	
+
 	~Wave()
 	{
 	}
-	
+
 	/**
 	 * Call this on initialization
 	 *
@@ -71,7 +71,7 @@ public:
 	void prepareToPlay(float *PtrTable, uint32_t size, WaveForm Form)
 	{
 		buffer_.prepareToPlay(PtrTable, size);
-		
+
 		switch(Form)
 		{
 			case WAVETABLE_SINE:
@@ -79,9 +79,9 @@ public:
 				break;
 			default: ZEN_ERROR_HANDLER();
 		}
-		
+
 	}
-	
+
 	/**
 	 * sets frequency
 	 *
@@ -92,7 +92,7 @@ public:
 	{
 		f_=freq;
 	}
-	
+
 	/**
 	 * sets phase
 	 *
@@ -106,7 +106,7 @@ public:
 		ptr_ = buffer_.point_index(ptr_,((int)offset-(int)new_offset));
 		phase = phase;
 	}
-	
+
 	/**
 	 * Process one step of wavetable generation
 	 * @return new sample.
@@ -115,8 +115,8 @@ public:
 	{
 		float fltpart;
 		float intpart;
-		
-		
+
+
 		size_t size = buffer_.getSize();
 		float norm_freq = f_*size/instance_.getSampleRate();
 		fltpart = modff(norm_freq,&intpart);
@@ -128,12 +128,12 @@ public:
 		}
 		balance_=new_balance;
 		ptr_ = buffer_.point_index(ptr_,(int)intpart);
-		
+
 		float v1 = ptr_[0];
 		float v2 = buffer_.point_index(ptr_,1)[0];
 		float retval=mixer(v1,v2,balance_);
 		return retval;
-		
+
 	}
 	/**
 	 * Process a block of wavetable samples with a frequency array
@@ -145,7 +145,7 @@ public:
 	 */
 	inline void processBlock(float *io, float *freqs, size_t BlockSize)
 	{
-		for(int i=0; i<BlockSize; i++)
+		for(size_t i=0; i<BlockSize; i++)
 		{
 			size_t size = buffer_.getSize();
 			float stride = freqs[i]*size/instance_.getSampleRate();
@@ -163,10 +163,10 @@ public:
 			float retval=mixer(v1,v2,balance_);
 			f_ = freqs[i];
 			io[i] = retval;
-			
+
 		}
 	}
-	
+
 	/**
 	 * Process a block of wavetable samples with a fixed frequency
 	 * Call this if for the whole block frequency is constant
@@ -176,7 +176,7 @@ public:
 	 */
 	inline void processBlock(float *io, size_t BlockSize)
 	{
-		for(int i=0; i<BlockSize; i++)
+		for(size_t i=0; i<BlockSize; i++)
 		{
 			size_t size = buffer_.getSize();
 			float stride = f_*size/instance_.getSampleRate();
@@ -193,10 +193,10 @@ public:
 			float v2 = buffer_.point_index(ptr_,1)[0];
 			float retval=mixer(v1,v2,balance_);
 			io[i] = retval;
-			
+
 		}
 	}
-	
+
 private:
 	float balance_;
 	float phase_balance_;
@@ -205,15 +205,15 @@ private:
 	float phase_;
 	RingBuffer buffer_;
 	AudioInstance &instance_;
-	
-	
+
+
 	//Period is table size
 	inline void generate_sine()
 	{
 		size_t size = buffer_.getSize();
 		buffer_.resetHead();
 		float val;
-		for(int y = 0; y<size; y++)
+		for(size_t y = 0; y<size; y++)
 		{
 			val=sin(2.0f*ZEN_PI*(double)y/(double)size);
 			buffer_.push(val);

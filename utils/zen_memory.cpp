@@ -4,24 +4,24 @@
 
 /**
  In short, mpool is distributed under so called "BSD license",
- 
+
  Copyright (c) 2009-2010 Tatsuhiko Kubo <cubicdaiya@gmail.com>
  All rights reserved.
- 
+
  Redistribution and use in source and binary forms, with or without modification,
  are permitted provided that the following conditions are met:
- 
+
  * Redistributions of source code must retain the above copyright notice,
  this list of conditions and the following disclaimer.
- 
+
  * Redistributions in binary form must reproduce the above copyright notice,
  this list of conditions and the following disclaimer in the documentation
  and/or other materials provided with the distribution.
- 
+
  * Neither the name of the authors nor the names of its contributors
  may be used to endorse or promote products derived from this software
  without specific prior written permission.
- 
+
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -84,16 +84,16 @@ char* zen::Mempool::alloc(size_t asize)
         }
         return NULL;
     }
-    
+
     // Should we alloc the first block large enough or check all blocks and pick the one closest in size?
 	size_t size_to_alloc = align(asize);
 	MemoryNode* node_to_alloc = head_;
-    
+
     // Traverse the free list for a large enough block
     while (node_to_alloc->size < size_to_alloc)
     {
         node_to_alloc = node_to_alloc->next;
-        
+
         // If we reach the end of the free list, there
         // are no blocks large enough, return NULL
         if (node_to_alloc == NULL)
@@ -109,7 +109,7 @@ char* zen::Mempool::alloc(size_t asize)
             return NULL;
         }
     }
-    
+
     // Create a new node after the node to be allocated if there is enough space
     MemoryNode* new_node;
     size_t leftover = node_to_alloc->size - size_to_alloc;
@@ -127,28 +127,28 @@ char* zen::Mempool::alloc(size_t asize)
     {
         // Add any leftover space to the allocated node to avoid fragmentation
         node_to_alloc->size += leftover;
-        
+
         new_node = node_to_alloc->next;
     }
-    
+
     // Update the head if we are allocating the first node of the free list
     // The head will be NULL if there is no space left
     if (head_ == node_to_alloc)
     {
         head_ = new_node;
     }
-    
+
     // Remove the allocated node from the free list
     delink_node(node_to_alloc);
-    
+
     usize_ += getHeaderSize() + node_to_alloc->size;
-    
+
     if (clearOnAllocation_)
     {
         char* new_pool = (char*)node_to_alloc->pool;
-        for (int i = 0; i < node_to_alloc->size; i++) new_pool[i] = 0;
+        for (size_t i = 0; i < node_to_alloc->size; i++) new_pool[i] = 0;
     }
-    
+
     // Return the pool of the allocated node;
     return node_to_alloc->pool;
 #endif
@@ -187,16 +187,16 @@ char* zen::Mempool::calloc(size_t asize)
         }
         return NULL;
     }
-    
+
     // Should we alloc the first block large enough or check all blocks and pick the one closest in size?
 	size_t size_to_alloc = align(asize);
 	MemoryNode* node_to_alloc = head_;
-    
+
     // Traverse the free list for a large enough block
     while (node_to_alloc->size < size_to_alloc)
     {
         node_to_alloc = node_to_alloc->next;
-        
+
         // If we reach the end of the free list, there
         // are no blocks large enough, return NULL
         if (node_to_alloc == NULL)
@@ -212,7 +212,7 @@ char* zen::Mempool::calloc(size_t asize)
             return NULL;
         }
     }
-    
+
     // Create a new node after the node to be allocated if there is enough space
 	MemoryNode* new_node;
     size_t leftover = node_to_alloc->size - size_to_alloc;
@@ -230,23 +230,23 @@ char* zen::Mempool::calloc(size_t asize)
     {
         // Add any leftover space to the allocated node to avoid fragmentation
         node_to_alloc->size += leftover;
-        
+
         new_node = node_to_alloc->next;
     }
-    
+
     // Update the head if we are allocating the first node of the free list
     // The head will be NULL if there is no space left
     if (head_ == node_to_alloc)
     {
         head_ = new_node;
     }
-    
+
     // Remove the allocated node from the free list
     delink_node(node_to_alloc);
-    
+
     usize_ += getHeaderSize() + node_to_alloc->size;
     // Format the new pool
-    for (int i = 0; i < node_to_alloc->size; i++) node_to_alloc->pool[i] = 0;
+    for (size_t i = 0; i < node_to_alloc->size; i++) node_to_alloc->pool[i] = 0;
     // Return the pool of the allocated node;
     return node_to_alloc->pool;
 #endif
@@ -263,23 +263,23 @@ void zen::Mempool::free(char* ptr)
     //if (ptr < pool->mpool || ptr >= pool->mpool + pool->msize)
     // Get the node at the freed space
 	MemoryNode* freed_node = (MemoryNode*) (ptr - getHeaderSize());
-    
+
     usize_ -= getHeaderSize() + freed_node->size;
-    
+
     // Check each node in the list against the newly freed one to see if it's adjacent in memory
 	MemoryNode* other_node = head_;
 	MemoryNode* next_node;
     while (other_node != NULL)
     {
-        if ((long) other_node < (long) mpool_ ||
-            (long) other_node >= (((long) mpool_) + msize_))
+        if ((size_t) other_node < (size_t) mpool_ ||
+            (size_t) other_node >= (((size_t) mpool_) + msize_))
         {
 //			ZEN_ERROR_HANDLER();
             return;
         }
         next_node = other_node->next;
         // Check if a node is directly after the freed node
-        if (((long) freed_node) + (getHeaderSize() + freed_node->size) == (long) other_node)
+        if (((size_t) freed_node) + (getHeaderSize() + freed_node->size) == (size_t) other_node)
         {
             // Increase freed node's size
             freed_node->size += getHeaderSize() + other_node->size;
@@ -288,13 +288,13 @@ void zen::Mempool::free(char* ptr)
             // Delink the merged node
             delink_node(other_node);
         }
-        
+
         // Check if a node is directly before the freed node
-        else if (((long) other_node) + (getHeaderSize() + other_node->size) == (long) freed_node)
+        else if (((size_t) other_node) + (getHeaderSize() + other_node->size) == (size_t) freed_node)
         {
             // Increase the merging node's size
             other_node->size += getHeaderSize() + freed_node->size;
-            
+
             if (other_node != head_)
             {
                 // Delink the merging node
@@ -312,15 +312,15 @@ void zen::Mempool::free(char* ptr)
                 freed_node = other_node;
             }
         }
-        
+
         other_node = next_node;
     }
-    
+
     // Ensure the freed node is attached to the head
     freed_node->next = head_;
     if (head_ != NULL) head_->prev = freed_node;
     head_ = freed_node;
-    
+
     // Format the freed pool
     //    char* freed_pool = (char*)freed_node->pool;
     //    for (int i = 0; i < freed_node->size; i++) freed_pool[i] = 0;
